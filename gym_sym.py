@@ -33,7 +33,7 @@ def compute_acceleration(D, D2, x, x_dot, boundary_val, dx, d2x, dx_dot, g):
 
     # Prepare fixed end boundary condition
     tension_lhs[-1,:] = D[-1,:]
-    tension_rhs[-1] = np.dot(dx[-1], boundary_val)
+    tension_rhs[-1] = np.dot(dx[-1], boundary_val) - np.dot(dx[-1], g)
 
     # Solve for tension
     tension = solve(tension_lhs, tension_rhs)
