@@ -98,3 +98,19 @@ def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size):
     new_xdot = x_dot + (1/6) * step_size * (k1xdot + 2 * k2xdot + 2 * k3xdot + k4xdot)
 
     return new_x, new_xdot
+
+
+def evolve(boundary_fn, g, x_initial, x_dot_initial, N, step_size, n_steps, checkpoint_freq):
+
+    D, s = diff_matrix(N)
+    D2 = D @ D
+    results = []
+    x = x_initial
+    x_dot = x_dot_initial
+
+    for i in range(n_steps):
+        if i % checkpoint_freq == 0:
+            results.append((t + step_size * i, x))
+        x, x_dot = time_step_jump(D, D2, g, x, x_dot, t + step_size * i, boundary_fn, step_size)
+
+    return results
