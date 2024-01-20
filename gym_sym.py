@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.linalg import solve
+from tqdm import tqdm
 
 def alt(n):
     alt = [(-1)**i for i in range(n)]
@@ -71,28 +72,28 @@ def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size):
     '''Jump a time step using RK4'''
 
     k1x = x_dot
-    k1xdot = compute_acceleration(D, D2, x, x_dot, boundary_fn(t), g)
+    k1xdot = compute_acceleration(D, D2, x, x_dot, boundary_fn(t), g)[0]
     
     k2x = x_dot + 0.5 * step_size * k1xdot
     k2xdot = compute_acceleration(D, D2,
                                   x + 0.5 * step_size * k1x,
                                   x_dot + 0.5 * step_size * k1xdot,
                                   boundary_fn(t + 0.5 * step_size),
-                                  g)
+                                  g)[0]
 
     k3x = x_dot + 0.5 * step_size * k2xdot
     k3xdot = compute_acceleration(D, D2,
                                   x + 0.5 * step_size * k2x,
                                   x_dot + 0.5 * step_size * k2xdot,
                                   boundary_fn(t + 0.5 * step_size),
-                                  g)
+                                  g)[0]
 
     k4x = x_dot + step_size * k3xdot
     k4xdot = compute_acceleration(D, D2,
                                   x + step_size * k3x,
                                   x_dot + step_size * k3xdot,
                                   boundary_fn(t + step_size),
-                                  g)
+                                  g)[0]
 
     new_x = x + (1/6) * step_size * (k1x + 2 * k2x + 2 * k3x + k4x)
     new_xdot = x_dot + (1/6) * step_size * (k1xdot + 2 * k2xdot + 2 * k3xdot + k4xdot)
@@ -100,17 +101,30 @@ def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size):
     return new_x, new_xdot
 
 
-def evolve(boundary_fn, g, x_initial, x_dot_initial, N, step_size, n_steps, checkpoint_freq):
+def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq):
 
     D, s = diff_matrix(N)
     D2 = D @ D
     results = []
-    x = x_initial
-    x_dot = x_dot_initial
+    x = x_initial_fn(s)
+    x_dot = x_dot_initial_fn(s)
 
-    for i in range(n_steps):
+    for i in tqdm(range(n_steps)):
         if i % checkpoint_freq == 0:
-            results.append((t + step_size * i, x))
-        x, x_dot = time_step_jump(D, D2, g, x, x_dot, t + step_size * i, boundary_fn, step_size)
+            results.append((step_size * i, x))
+        x, x_dot = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size)
 
     return results
+
+
+def test_evolve():
+
+    boundary_fn = lambda t: np.array([0,0])
+    g = np.array([0,-1])
+    x_initial_fn = lambda s: np.column_stack((np.zeros(len(s)), -1 * s))
+    x_dot_initial_fn = lambda s: np.zeros((len(s),2))
+    N = 100
+    step_size = 0.0001
+    n_steps = 100000
+    checkpoint_freq = 1000
+    return evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq)
