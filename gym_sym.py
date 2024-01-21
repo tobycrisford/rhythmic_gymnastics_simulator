@@ -102,11 +102,30 @@ def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size):
 
     return new_x, new_xdot
 
+def xdot_clean(D, D_dirichlet, x_dot, x):
+    '''Projects out length changing part of x_dot, to boost numerical stability.
+    This part is identically zero anyway for the analytic solution.'''
+
+    dx_dot = D @ x_dot
+    dx = D @ x
+    problem = np.sum(dx_dot * dx, axis=1)
+    clean_dxdot = dx_dot - (problem.reshape((len(problem),1)) * dx) / (np.sum(dx**2, axis=1)).reshape((len(problem),1))
+    rhs = clean_dxdot
+    rhs[-1,:] = x_dot[-1,:]
+    clean_xdot = np.zeros(x_dot.shape)
+    for i in range(len(x_dot[0])):
+        clean_xdot[:,i] = solve(D_dirichlet, rhs[:,i])
+    return clean_xdot
+
 
 def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq):
 
     D, s = diff_matrix(N)
     D2 = D @ D
+    D_dirichlet = np.copy(D)
+    D_dirichlet[-1,:] = np.zeros(len(D))
+    D_dirichlet[-1,-1] = 1.0
+
     results = []
     x = x_initial_fn(s)
     x_dot = x_dot_initial_fn(s)
@@ -117,6 +136,7 @@ def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps
             stability_monitor = np.sum(tangent**2, axis=1) - 1.0
             results.append((step_size * i, x, stability_monitor))
         x, x_dot = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size)
+        x_dot = xdot_clean(D, D_dirichlet, x_dot, x)
 
     return results, s
 
