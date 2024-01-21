@@ -134,13 +134,13 @@ def test_evolve():
     return evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq)
 
 
-def update_line(result, line, time_label):
+def update_line(result, line, time_label, scale=1.0):
     '''Updates matplotlib line plot with result at specific time.'''
 
     x = result[1][:,0]
     y = result[1][:,1]
-    line.set_xdata(x)
-    line.set_ydata(y)
+    line.set_xdata(x * scale)
+    line.set_ydata(y * scale)
     time_label.set_text("{:.2f}".format(result[0]))
 
     return (line, time_label)
@@ -155,18 +155,18 @@ def update_stability_line(result, line, time_label):
     return (line, time_label)
 
 
-def animate_results(results):
+def animate_results(results, scale=1.0):
 
     fig, ax = plt.subplots()
-    ax.set_xlim(-3,3)
-    ax.set_ylim(-3,3)
+    ax.set_xlim(-3*scale,3*scale)
+    ax.set_ylim(-3*scale,3*scale)
     line, = ax.plot(np.arange(10),np.arange(10)) # Dummy line
     title = ax.set_title(str(results[0][0]))
-    update_line(results[0], line, title)
+    update_line(results[0], line, title, scale=scale)
     interval = (results[1][0] - results[0][0]) * 1000
 
     def animate(i):
-        return update_line(results[i], line, title)
+        return update_line(results[i], line, title, scale=scale)
 
     ani = animation.FuncAnimation(
         fig, animate, frames=len(results), interval=interval)
@@ -208,10 +208,10 @@ def create_boundary_fn(position_fn, dposition_fn, d2position_fn):
     return boundary_fn
 
 
-def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename):
+def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, scale=1.0):
     '''Solve and save animation for given position of ribbon end, with standard vals for other params.'''
 
-    g = np.array([0,-10])
+    g = np.array([0,-g])
     x_initial_fn = lambda s: np.column_stack((np.zeros(len(s)), -1 * s))
     x_dot_initial_fn = lambda s: np.zeros((len(s),2))
 
@@ -224,7 +224,7 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename):
 
     results, s = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq)
 
-    ani = animate_results(results)
+    ani = animate_results(results, scale=scale)
 
     stab_ani = animate_stability_monitor(results, s)
 
@@ -234,13 +234,16 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename):
     return results, s
 
 
-def snake(a=1.0, freq=1.0):
-    '''Solve and create animation of the 'snake' move.'''
+def snake(a=0.05, freq=6.0, L=4.0):
+    '''Solve and create animation of the 'snake' move, given amplitude and frequency of oscillation, and length of ribbon.'''
 
+    a = a * (2 / L)
+    g = 10.0 * (2 / L)
+    
     position_fn = lambda t: np.array([a * np.sin(freq * t), 0])
     dposition_fn = lambda t: np.array([a * freq * np.cos(freq * t), 0])
     d2position_fn = lambda t: np.array([-1.0 * a * freq**2 * np.sin(freq * t), 0])
 
-    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html')
+    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html', g=g, scale = L / 2)
 
     return results, s
