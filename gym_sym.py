@@ -178,15 +178,13 @@ def create_boundary_fn(position_fn, dposition_fn, d2position_fn):
     return boundary_fn
 
 
-def snake():
-    '''Solve and create animation of the 'snake' move.'''
+def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename):
+    '''Solve and save animation for given position of ribbon end, with standard vals for other params.'''
 
     g = np.array([0,-10])
     x_initial_fn = lambda s: np.column_stack((np.zeros(len(s)), -1 * s))
     x_dot_initial_fn = lambda s: np.zeros((len(s),2))
-    position_fn = lambda t: np.array([(1/3.0) * np.sin(6.0 * t), 0])
-    dposition_fn = lambda t: np.array([2.0 * np.cos(6.0 * t), 0])
-    d2position_fn = lambda t: np.array([-12.0 * np.sin(6.0 * t), 0])
+
     boundary_fn = create_boundary_fn(position_fn, dposition_fn, d2position_fn)
 
     N = 100
@@ -198,4 +196,14 @@ def snake():
 
     ani = animate_results(results)
 
-    ani.save(filename="snake.html",writer="html")
+    ani.save(filename=filename,writer="html")
+
+
+def snake(a=1.0, freq=1.0):
+    '''Solve and create animation of the 'snake' move.'''
+
+    position_fn = lambda t: np.array([a * np.sin(freq * t), 0])
+    dposition_fn = lambda t: np.array([a * freq * np.cos(freq * t), 0])
+    d2position_fn = lambda t: np.array([-1.0 * a * freq**2 * np.sin(freq * t), 0])
+
+    solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html')
