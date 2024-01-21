@@ -165,13 +165,30 @@ def animate_results(results):
     return ani
 
 
+def create_boundary_fn(position_fn, dposition_fn, d2position_fn):
+    '''Adds smooth start to desired position fn for end of ribbon, and returns boundary cond for the acceleration.'''
+
+    assert np.all(position_fn(0) == 0.0)
+    tran = lambda t: (1 - np.exp(-1 * t**2))
+    dtran = lambda t: 2.0 * t * np.exp(-1 * t**2)
+    d2tran = lambda t: 2.0 * np.exp(-1 * t**2) - 4.0 * t**2 * np.exp(-1 * t**2)
+
+    boundary_fn = lambda t: tran(t) * d2position_fn(t) + 2.0 * dtran(t) * dposition_fn(t) + d2tran(t) * position_fn(t)
+
+    return boundary_fn
+
+
 def snake():
     '''Solve and create animation of the 'snake' move.'''
 
-    boundary_fn = lambda t: np.array([np.sin(t), 0])
     g = np.array([0,-10])
     x_initial_fn = lambda s: np.column_stack((np.zeros(len(s)), -1 * s))
     x_dot_initial_fn = lambda s: np.zeros((len(s),2))
+    position_fn = lambda t: np.array([(1/3.0) * np.sin(6.0 * t), 0])
+    dposition_fn = lambda t: np.array([2.0 * np.cos(6.0 * t), 0])
+    d2position_fn = lambda t: np.array([-12.0 * np.sin(6.0 * t), 0])
+    boundary_fn = create_boundary_fn(position_fn, dposition_fn, d2position_fn)
+
     N = 100
     step_size = 0.0001
     n_steps = 100000
