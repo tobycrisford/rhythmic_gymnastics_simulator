@@ -113,7 +113,9 @@ def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps
 
     for i in tqdm(range(n_steps)):
         if i % checkpoint_freq == 0:
-            results.append((step_size * i, x))
+            tangent = D @ x
+            stability_monitor = np.sum(tangent**2, axis=1)
+            results.append((step_size * i, x, stability_monitor))
         x, x_dot = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size)
 
     return results
