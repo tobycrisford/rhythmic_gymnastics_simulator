@@ -215,27 +215,27 @@ def animate_stability_monitor(results, s):
     return ani
 
 
-def create_boundary_fn(position_fn, dposition_fn, d2position_fn):
+def create_boundary_fn(position_fn, dposition_fn, d2position_fn, transition_timescale=1.0):
     '''Adds smooth start to desired position fn for end of ribbon, and returns boundary cond for the acceleration.'''
 
     assert np.all(position_fn(0) == 0.0)
-    tran = lambda t: (1 - np.exp(-1 * t**2))
-    dtran = lambda t: 2.0 * t * np.exp(-1 * t**2)
-    d2tran = lambda t: 2.0 * np.exp(-1 * t**2) - 4.0 * t**2 * np.exp(-1 * t**2)
+    tran = lambda t: (1 - np.exp(-1 * (t/transition_timescale)**2))
+    dtran = lambda t: 2.0 * (t/transition_timescale) * np.exp(-1 * (t/transition_timescale)**2) * (1/transition_timescale)
+    d2tran = lambda t: (2.0 * np.exp(-1 * (t/transition_timescale)**2) - 4.0 * (t/transition_timescale)**2 * np.exp(-1 * (t/transition_timescale)**2)) * (1/transition_timescale)**2
 
     boundary_fn = lambda t: tran(t) * d2position_fn(t) + 2.0 * dtran(t) * dposition_fn(t) + d2tran(t) * position_fn(t)
 
     return boundary_fn
 
 
-def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, scale=1.0, total_time=10.0):
+def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, scale=1.0, total_time=10.0, transition_timescale=1.0):
     '''Solve and save animation for given position of ribbon end, with standard vals for other params.'''
 
     g = np.array([0,-g])
     x_initial_fn = lambda s: np.column_stack((np.zeros(len(s)), -1 * s))
     x_dot_initial_fn = lambda s: np.zeros((len(s),2))
 
-    boundary_fn = create_boundary_fn(position_fn, dposition_fn, d2position_fn)
+    boundary_fn = create_boundary_fn(position_fn, dposition_fn, d2position_fn, transition_timescale=transition_timescale)
 
     N = 100
     step_size = 0.0001
@@ -269,7 +269,7 @@ def snake(a=0.05, freq=6.0, L=4.0, total_time=10.0):
     return results, s
 
 
-def circle(R=2.0, freq=6.0, L=4.0, total_time=10.0):
+def circle(R=2.0, freq=6.0, L=4.0, total_time=10.0, transition_timescale=1/12.0):
 
     R = R * (2 / L)
     g = 10.0 * (2 / L)
@@ -278,6 +278,6 @@ def circle(R=2.0, freq=6.0, L=4.0, total_time=10.0):
     dposition_fn = lambda t: np.array([R * freq * np.sin(freq * t), R * freq * np.cos(freq * t)])
     d2position_fn = lambda t: np.array([R * freq**2 * np.cos(freq * t), -1.0 * R * freq**2 * np.sin(freq * t)])
 
-    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'circle.html', total_time=total_time, g=g, scale = L / 2.0)
+    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'circle.html', total_time=total_time, g=g, scale = L / 2.0, transition_timescale=transition_timescale)
 
     return results, s
