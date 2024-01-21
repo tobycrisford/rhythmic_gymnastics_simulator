@@ -139,7 +139,7 @@ def update_line(result, line, time_label):
     y = result[1][:,1]
     line.set_xdata(x)
     line.set_ydata(y)
-    time_label.set_text(str(result[0]))
+    time_label.set_text("{:.2f}".format(result[0]))
 
     return (line, time_label)
 
