@@ -228,7 +228,7 @@ def create_boundary_fn(position_fn, dposition_fn, d2position_fn):
     return boundary_fn
 
 
-def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, scale=1.0):
+def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, scale=1.0, total_time=10.0):
     '''Solve and save animation for given position of ribbon end, with standard vals for other params.'''
 
     g = np.array([0,-g])
@@ -239,7 +239,7 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
 
     N = 100
     step_size = 0.0001
-    n_steps = 100000
+    n_steps = int(total_time / step_size)
     checkpoint_freq = 1000
 
     results, s = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq)
@@ -254,7 +254,7 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
     return results, s
 
 
-def snake(a=0.05, freq=6.0, L=4.0):
+def snake(a=0.05, freq=6.0, L=4.0, total_time=10.0):
     '''Solve and create animation of the 'snake' move, given amplitude and frequency of oscillation, and length of ribbon.'''
 
     a = a * (2 / L)
@@ -264,6 +264,6 @@ def snake(a=0.05, freq=6.0, L=4.0):
     dposition_fn = lambda t: np.array([a * freq * np.cos(freq * t), 0])
     d2position_fn = lambda t: np.array([-1.0 * a * freq**2 * np.sin(freq * t), 0])
 
-    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html', g=g, scale = L / 2)
+    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html', total_time=total_time, g=g, scale = L / 2)
 
     return results, s
