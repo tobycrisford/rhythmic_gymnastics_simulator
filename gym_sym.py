@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.linalg import solve
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 def alt(n):
     alt = [(-1)**i for i in range(n)]
@@ -128,3 +130,55 @@ def test_evolve():
     n_steps = 100000
     checkpoint_freq = 1000
     return evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq)
+
+
+def update_line(result, line, time_label):
+    '''Updates matplotlib line plot with result at specific time.'''
+
+    x = result[1][:,0]
+    y = result[1][:,1]
+    line.set_xdata(x)
+    line.set_ydata(y)
+    time_label.set_text(str(result[0]))
+
+    return (line, time_label)
+
+
+def animate_results(results):
+
+    fig, ax = plt.subplots()
+    ax.set_xlim(-3,3)
+    ax.set_ylim(-3,3)
+    line, = ax.plot(np.arange(10),np.arange(10)) # Dummy line
+    title = ax.set_title(str(results[0][0]))
+    update_line(results[0], line, title)
+    interval = (results[1][0] - results[0][0]) * 1000
+
+    def animate(i):
+        return update_line(results[i], line, title)
+
+    ani = animation.FuncAnimation(
+        fig, animate, frames=len(results), interval=interval)
+
+    plt.show()
+
+    return ani
+
+
+def snake():
+    '''Solve and create animation of the 'snake' move.'''
+
+    boundary_fn = lambda t: np.array([np.sin(t), 0])
+    g = np.array([0,-10])
+    x_initial_fn = lambda s: np.column_stack((np.zeros(len(s)), -1 * s))
+    x_dot_initial_fn = lambda s: np.zeros((len(s),2))
+    N = 100
+    step_size = 0.0001
+    n_steps = 100000
+    checkpoint_freq = 1000
+
+    results = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq)
+
+    ani = animate_results(results)
+
+    ani.save(filename="snake.html",writer="html")
