@@ -32,7 +32,7 @@ def compute_acceleration(D, D2, x, x_dot, boundary_val, g):
     
     # Prepare tension eqn
     tension_lhs = D2 - np.diag(np.sum(d2x**2,axis=1))
-    tension_rhs = -1 * np.sum(dx_dot * d2x,axis=1)
+    tension_rhs = -1 * np.sum(dx_dot**2,axis=1)
 
     # Prepare free end tension boundary condition
     tension_lhs[0,:] = np.zeros(len(tension_lhs))
