@@ -114,11 +114,11 @@ def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps
     for i in tqdm(range(n_steps)):
         if i % checkpoint_freq == 0:
             tangent = D @ x
-            stability_monitor = np.sum(tangent**2, axis=1)
+            stability_monitor = np.sum(tangent**2, axis=1) - 1.0
             results.append((step_size * i, x, stability_monitor))
         x, x_dot = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size)
 
-    return results
+    return results, s
 
 
 def test_evolve():
@@ -146,6 +146,15 @@ def update_line(result, line, time_label):
     return (line, time_label)
 
 
+def update_stability_line(result, line, time_label):
+    '''Update matplotlib plot of stability monitor'''
+
+    line.set_ydata(result[2])
+    time_label.set_text("{:.2f}".format(result[0]))
+
+    return (line, time_label)
+
+
 def animate_results(results):
 
     fig, ax = plt.subplots()
@@ -163,6 +172,25 @@ def animate_results(results):
         fig, animate, frames=len(results), interval=interval)
 
     plt.show()
+
+    return ani
+
+def animate_stability_monitor(results, s):
+
+    fig, ax = plt.subplots()
+    ax.set_ylim(-10**(-3),10**(-3))
+    ax.set_xlim(-1,1)
+    line, = ax.plot(s, np.zeros(len(s)))
+    title = ax.set_title(str(results[0][0]))
+    update_stability_line(results[0], line, title)
+    interval = (results[1][0] - results[0][0]) * 1000
+
+    def animate(i):
+        return update_stability_line(results[i], line, title)
+
+    ani = animation.FuncAnimation(
+        fig, animate, frames=len(results), interval=interval
+    )
 
     return ani
 
@@ -194,11 +222,16 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename):
     n_steps = 100000
     checkpoint_freq = 1000
 
-    results = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq)
+    results, s = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq)
 
     ani = animate_results(results)
 
+    stab_ani = animate_stability_monitor(results, s)
+
     ani.save(filename=filename,writer="html")
+    stab_ani.save(filename='stability_check.html',writer='html')
+
+    return results, s
 
 
 def snake(a=1.0, freq=1.0):
@@ -208,4 +241,6 @@ def snake(a=1.0, freq=1.0):
     dposition_fn = lambda t: np.array([a * freq * np.cos(freq * t), 0])
     d2position_fn = lambda t: np.array([-1.0 * a * freq**2 * np.sin(freq * t), 0])
 
-    solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html')
+    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html')
+
+    return results, s
