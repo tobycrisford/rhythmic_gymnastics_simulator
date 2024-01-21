@@ -267,3 +267,17 @@ def snake(a=0.05, freq=6.0, L=4.0, total_time=10.0):
     results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html', total_time=total_time, g=g, scale = L / 2)
 
     return results, s
+
+
+def circle(R=2.0, freq=6.0, L=4.0, total_time=10.0):
+
+    R = R * (2 / L)
+    g = 10.0 * (2 / L)
+
+    position_fn = lambda t: np.array([-R * np.cos(freq * t) + R, R * np.sin(freq * t)])
+    dposition_fn = lambda t: np.array([R * freq * np.sin(freq * t), R * freq * np.cos(freq * t)])
+    d2position_fn = lambda t: np.array([R * freq**2 * np.cos(freq * t), -1.0 * R * freq**2 * np.sin(freq * t)])
+
+    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'circle.html', total_time=total_time, g=g, scale = L / 2.0)
+
+    return results, s
