@@ -258,11 +258,12 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
     return results, s
 
 
-def snake(a=0.05, freq=6.0, L=4.0, total_time=10.0, end_mass=0.0):
+def snake(a=0.1, freq=12.0, L=4.0, total_time=10.0, end_mass=1.0):
     '''Solve and create animation of the 'snake' move, given amplitude and frequency of oscillation, and length of ribbon.'''
 
     a = a * (2 / L)
     g = 10.0 * (2 / L)
+    end_mass = end_mass * (2 / L)
     
     position_fn = lambda t: np.array([a * np.sin(freq * t), 0])
     dposition_fn = lambda t: np.array([a * freq * np.cos(freq * t), 0])
