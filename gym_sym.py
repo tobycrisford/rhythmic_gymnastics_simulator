@@ -78,7 +78,7 @@ def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size, end_mass=0.0):
     '''Jump a time step using RK4'''
 
     k1x = x_dot
-    k1xdot = compute_acceleration(D, D2, x, x_dot, boundary_fn(t), g, end_mass=end_mass)[0]
+    k1xdot, tension = compute_acceleration(D, D2, x, x_dot, boundary_fn(t), g, end_mass=end_mass)
     
     k2x = x_dot + 0.5 * step_size * k1xdot
     k2xdot = compute_acceleration(D, D2,
@@ -104,7 +104,7 @@ def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size, end_mass=0.0):
     new_x = x + (1/6) * step_size * (k1x + 2 * k2x + 2 * k3x + k4x)
     new_xdot = x_dot + (1/6) * step_size * (k1xdot + 2 * k2xdot + 2 * k3xdot + k4xdot)
 
-    return new_x, new_xdot
+    return new_x, new_xdot, tension
 
 def xdot_clean(D, D_dirichlet, x_dot, x):
     '''Projects out length changing part of x_dot, to boost numerical stability.
@@ -133,13 +133,14 @@ def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps
     results = []
     x = x_initial_fn(s)
     x_dot = x_dot_initial_fn(s)
+    tension = None
 
     for i in tqdm(range(n_steps)):
         if i % checkpoint_freq == 0:
             tangent = D @ x
             stability_monitor = np.sum(tangent**2, axis=1) - 1.0
-            results.append((step_size * i, x, stability_monitor))
-        x, x_dot = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size, end_mass=end_mass)
+            results.append((step_size * i, x, stability_monitor, tension))
+        x, x_dot, tension = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size, end_mass=end_mass)
         #x_dot = xdot_clean(D, D_dirichlet, x_dot, x) - Boosts stability although could mask mistakes
 
     return results, s
@@ -170,11 +171,12 @@ def update_line(result, line, time_label, scale=1.0):
     return (line, time_label)
 
 
-def update_stability_line(result, line, time_label):
-    '''Update matplotlib plot of stability monitor'''
+def update_extra_line(result, result_index, line, time_label):
+    '''Update matplotlib plot of stability monitor (or other fn of sigma)'''
 
-    line.set_ydata(result[2])
-    time_label.set_text("{:.2f}".format(result[0]))
+    if not (result[result_index] is None):
+        line.set_ydata(result[result_index])
+        time_label.set_text("{:.2f}".format(result[0]))
 
     return (line, time_label)
 
@@ -199,18 +201,18 @@ def animate_results(results, scale=1.0):
 
     return ani
 
-def animate_stability_monitor(results, s):
+def animate_extra_fn(results, results_index, xlim, ylim, s):
 
     fig, ax = plt.subplots()
-    ax.set_ylim(-10**(-3),10**(-3))
-    ax.set_xlim(-1,1)
+    ax.set_ylim(*ylim)
+    ax.set_xlim(*xlim)
     line, = ax.plot(s, np.zeros(len(s)))
     title = ax.set_title(str(results[0][0]))
-    update_stability_line(results[0], line, title)
+    update_extra_line(results[0], results_index, line, title)
     interval = (results[1][0] - results[0][0]) * 1000
 
     def animate(i):
-        return update_stability_line(results[i], line, title)
+        return update_extra_line(results[i], results_index, line, title)
 
     ani = animation.FuncAnimation(
         fig, animate, frames=len(results), interval=interval
@@ -250,10 +252,13 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
 
     ani = animate_results(results, scale=scale)
 
-    stab_ani = animate_stability_monitor(results, s)
+    stab_ani = animate_extra_fn(results, 2, (-1,1), (-10**(-3),10**(-3)), s)
+
+    tension_ani = animate_extra_fn(results, 3, (-1,1), (-2.0,100.0), s)
 
     ani.save(filename=filename,writer="html")
     stab_ani.save(filename='stability_check.html',writer='html')
+    tension_ani.save(filename='tension.html',writer='html')
 
     return results, s
 
