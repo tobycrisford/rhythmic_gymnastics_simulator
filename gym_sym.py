@@ -23,17 +23,20 @@ def diff_matrix(N):
     return D, x
 
 
-def compute_acceleration(D, D2, x, x_dot, boundary_val, g, end_mass=0.0):
-    '''End mass is actually ratio of end mass to ribbon density (units of length).'''
+def compute_acceleration(D, D2, x, x_dot, boundary_val, g, end_mass=0.0, drag_coef=0.0):
+    '''End mass is actually ratio of end mass to ribbon density (units of length).
+    Drag coef has units 1/length.'''
 
     # Compute required derivatives
     dx = D @ x
     d2x = D2 @ x
     dx_dot = D @ x_dot
+    v_perp = x_dot - np.sum(dx * x_dot, axis=1).reshape(len(x),1) * dx
+    v_perp_abs = np.sqrt(np.sum(v_perp**2, axis=1))
     
     # Prepare tension eqn
     tension_lhs = D2 - np.diag(np.sum(d2x**2,axis=1))
-    tension_rhs = -1 * np.sum(dx_dot**2,axis=1)
+    tension_rhs = drag_coef * v_perp_abs * np.sum(x_dot * dx_dot, axis=1) - np.sum(dx_dot**2,axis=1)
 
     # Prepare free end tension boundary condition
     tension_lhs[0,:] = np.zeros(len(tension_lhs))
@@ -49,7 +52,7 @@ def compute_acceleration(D, D2, x, x_dot, boundary_val, g, end_mass=0.0):
     tension = solve(tension_lhs, tension_rhs)
 
     # Compute acceleration (imposing boundary value)
-    acceleration = (D @ tension).reshape((len(tension),1)) * dx + tension.reshape((len(tension),1)) * d2x + np.outer(np.ones(len(D)),g)
+    acceleration = (D @ tension).reshape((len(tension),1)) * dx + tension.reshape((len(tension),1)) * d2x + np.outer(np.ones(len(D)),g) - drag_coef * v_perp * v_perp_abs.reshape(len(x),1)
     acceleration[-1,:] = boundary_val
     if end_mass > 0.0: # If mass present, need to impose boundary condition on other end too
         acceleration[0,:] = g - (tension[0] / end_mass) * dx[0,:]
@@ -74,32 +77,32 @@ def test_acceleration(end_mass=0.0):
     assert np.all(acceleration**2 < 10**(-5))
 
 
-def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size, end_mass=0.0):
+def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size, end_mass=0.0, drag_coef=0.0):
     '''Jump a time step using RK4'''
 
     k1x = x_dot
-    k1xdot, tension = compute_acceleration(D, D2, x, x_dot, boundary_fn(t), g, end_mass=end_mass)
+    k1xdot, tension = compute_acceleration(D, D2, x, x_dot, boundary_fn(t), g, end_mass=end_mass, drag_coef=drag_coef)
     
     k2x = x_dot + 0.5 * step_size * k1xdot
     k2xdot = compute_acceleration(D, D2,
                                   x + 0.5 * step_size * k1x,
                                   x_dot + 0.5 * step_size * k1xdot,
                                   boundary_fn(t + 0.5 * step_size),
-                                  g, end_mass=end_mass)[0]
+                                  g, end_mass=end_mass, drag_coef=drag_coef)[0]
 
     k3x = x_dot + 0.5 * step_size * k2xdot
     k3xdot = compute_acceleration(D, D2,
                                   x + 0.5 * step_size * k2x,
                                   x_dot + 0.5 * step_size * k2xdot,
                                   boundary_fn(t + 0.5 * step_size),
-                                  g, end_mass=end_mass)[0]
+                                  g, end_mass=end_mass, drag_coef=drag_coef)[0]
 
     k4x = x_dot + step_size * k3xdot
     k4xdot = compute_acceleration(D, D2,
                                   x + step_size * k3x,
                                   x_dot + step_size * k3xdot,
                                   boundary_fn(t + step_size),
-                                  g, end_mass=end_mass)[0]
+                                  g, end_mass=end_mass, drag_coef=drag_coef)[0]
 
     new_x = x + (1/6) * step_size * (k1x + 2 * k2x + 2 * k3x + k4x)
     new_xdot = x_dot + (1/6) * step_size * (k1xdot + 2 * k2xdot + 2 * k3xdot + k4xdot)
@@ -122,7 +125,7 @@ def xdot_clean(D, D_dirichlet, x_dot, x):
     return clean_xdot
 
 
-def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=0.0):
+def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=0.0, drag_coef=0.0):
 
     D, s = diff_matrix(N)
     D2 = D @ D
@@ -140,7 +143,7 @@ def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps
             tangent = D @ x
             stability_monitor = np.sum(tangent**2, axis=1) - 1.0
             results.append((step_size * i, x, stability_monitor, tension))
-        x, x_dot, tension = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size, end_mass=end_mass)
+        x, x_dot, tension = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size, end_mass=end_mass, drag_coef=drag_coef)
         #x_dot = xdot_clean(D, D_dirichlet, x_dot, x) - Boosts stability although could mask mistakes
 
     return results, s
@@ -234,7 +237,7 @@ def create_boundary_fn(position_fn, dposition_fn, d2position_fn, transition_time
     return boundary_fn
 
 
-def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, end_mass=0.0, scale=1.0, total_time=10.0, transition_timescale=1.0):
+def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, end_mass=0.0, drag_coef=0.0, scale=1.0, total_time=10.0, transition_timescale=1.0):
     '''Solve and save animation for given position of ribbon end, with standard vals for other params.'''
 
     g = np.array([0,-g])
@@ -248,7 +251,7 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
     n_steps = int(total_time / step_size)
     checkpoint_freq = 1000
 
-    results, s = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=end_mass)
+    results, s = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=end_mass, drag_coef=drag_coef)
 
     ani = animate_results(results, scale=scale)
 
@@ -263,18 +266,19 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
     return results, s
 
 
-def snake(a=0.1, freq=12.0, L=4.0, total_time=10.0, end_mass=1.0):
+def snake(a=0.1, freq=12.0, L=4.0, total_time=10.0, end_mass=1.0, drag_coef=0.0):
     '''Solve and create animation of the 'snake' move, given amplitude and frequency of oscillation, and length of ribbon.'''
 
     a = a * (2 / L)
     g = 10.0 * (2 / L)
     end_mass = end_mass * (2 / L)
+    drag_coef = drag_coef * (L / 2)
     
     position_fn = lambda t: np.array([a * np.sin(freq * t), 0])
     dposition_fn = lambda t: np.array([a * freq * np.cos(freq * t), 0])
     d2position_fn = lambda t: np.array([-1.0 * a * freq**2 * np.sin(freq * t), 0])
 
-    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html', total_time=total_time, g=g, end_mass=end_mass, scale = L / 2)
+    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html', total_time=total_time, g=g, end_mass=end_mass, drag_coef=drag_coef, scale = L / 2)
 
     return results, s
 
