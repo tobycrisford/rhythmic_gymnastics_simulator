@@ -36,7 +36,7 @@ def compute_acceleration(D, D2, x, x_dot, boundary_val, g, end_mass=0.0, drag_co
     
     # Prepare tension eqn
     tension_lhs = D2 - np.diag(np.sum(d2x**2,axis=1))
-    tension_rhs = drag_coef * v_perp_abs * np.sum(x_dot * dx_dot, axis=1) - np.sum(dx_dot**2,axis=1)
+    tension_rhs = -1.0 * drag_coef * v_perp_abs * np.sum(x_dot * d2x, axis=1) - np.sum(dx_dot**2,axis=1)
 
     # Prepare free end tension boundary condition
     tension_lhs[0,:] = np.zeros(len(tension_lhs))
