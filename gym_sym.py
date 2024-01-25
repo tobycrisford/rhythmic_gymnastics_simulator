@@ -283,15 +283,16 @@ def snake(a=0.1, freq=12.0, L=4.0, total_time=10.0, end_mass=1.0, drag_coef=0.0)
     return results, s
 
 
-def circle(R=2.0, freq=6.0, L=4.0, total_time=10.0, transition_timescale=1/12.0):
+def circle(R=2.0, freq=6.0, L=4.0, total_time=10.0, transition_timescale=1.0, drag_coef=20.0):
 
     R = R * (2 / L)
     g = 10.0 * (2 / L)
+    drag_coef = drag_coef * (L / 2)
 
     position_fn = lambda t: np.array([-R * np.cos(freq * t) + R, R * np.sin(freq * t)])
     dposition_fn = lambda t: np.array([R * freq * np.sin(freq * t), R * freq * np.cos(freq * t)])
     d2position_fn = lambda t: np.array([R * freq**2 * np.cos(freq * t), -1.0 * R * freq**2 * np.sin(freq * t)])
 
-    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'circle.html', total_time=total_time, g=g, scale = L / 2.0, transition_timescale=transition_timescale)
+    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'circle.html', total_time=total_time, g=g, scale = L / 2.0, drag_coef=drag_coef, transition_timescale=transition_timescale)
 
     return results, s
