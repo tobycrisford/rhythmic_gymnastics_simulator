@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import os
 import pickle
+import hashlib
 
 CACHE_FOLDER = 'run_cache'
 
@@ -309,20 +310,39 @@ def circle(R=2.0, freq=6.0, L=4.0, total_time=10.0, transition_timescale=1.0, dr
 
     return results, s
 
+def function_contents(func):
+    '''Adapted from here: https://stackoverflow.com/questions/33998594/hash-for-lambda-function-in-python'''
+    closure = tuple(cell.cell_contents for cell in func.__closure__) if func.__closure__ else ()
+    recursed_closure = []
+    # Bad to send recursive functions through here!
+    for obj in closure:
+        if callable(obj):
+            recursed_closure.append(function_contents(obj))
+        else:
+            recursed_closure.append(obj)
+    return (func.__name__, func.__defaults__, tuple(recursed_closure), func.__code__.co_code, func.__code__.co_consts)
+
 
 def hash_run_params(*args, **kwargs):
 
+    m = hashlib.sha256()
+    
     kwarg_list = [(k, kwargs[k]) for k in kwargs]
     kwarg_list.sort(key=lambda x: x[0]) # Sort by key
     all_params = list(args) + kwarg_list
     hashable_params = []
     for p in all_params:
-        if isinstance(p, np.ndarray):
+        if callable(p):
+            hashable_params.append(function_contents(p))
+        elif isinstance(p, np.ndarray):
             hashable_params.append(tuple(p))
         else:
             hashable_params.append(p)
 
-    return hash(tuple(hashable_params))
+    for p in hashable_params:
+        m.update(str(p).encode())
+
+    return m.hexdigest()
 
 def evolve_with_disk_cache(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, **kwargs):
 
