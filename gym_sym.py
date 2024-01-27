@@ -33,6 +33,7 @@ def compute_acceleration(D, D2, x, x_dot, boundary_val, g, end_mass=0.0, drag_co
     dx_dot = D @ x_dot
     v_perp = x_dot - np.sum(dx * x_dot, axis=1).reshape(len(x),1) * dx
     v_perp_abs = np.sqrt(np.sum(v_perp**2, axis=1))
+    stability_monitor = np.sum(dx**2, axis=1)
     
     # Prepare tension eqn
     tension_lhs = D2 - np.diag(np.sum(d2x**2,axis=1))
@@ -57,7 +58,7 @@ def compute_acceleration(D, D2, x, x_dot, boundary_val, g, end_mass=0.0, drag_co
     if end_mass > 0.0: # If mass present, need to impose boundary condition on other end too
         acceleration[0,:] = g - (tension[0] / end_mass) * dx[0,:]
 
-    return acceleration, tension
+    return acceleration, tension, stability_monitor
 
 
 def test_acceleration(end_mass=0.0):
@@ -81,7 +82,7 @@ def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size, end_mass=0.0, 
     '''Jump a time step using RK4'''
 
     k1x = x_dot
-    k1xdot, tension = compute_acceleration(D, D2, x, x_dot, boundary_fn(t), g, end_mass=end_mass, drag_coef=drag_coef)
+    k1xdot, tension, stability_monitor = compute_acceleration(D, D2, x, x_dot, boundary_fn(t), g, end_mass=end_mass, drag_coef=drag_coef)
     
     k2x = x_dot + 0.5 * step_size * k1xdot
     k2xdot = compute_acceleration(D, D2,
@@ -107,7 +108,7 @@ def time_step_jump(D, D2, g, x, x_dot, t, boundary_fn, step_size, end_mass=0.0, 
     new_x = x + (1/6) * step_size * (k1x + 2 * k2x + 2 * k3x + k4x)
     new_xdot = x_dot + (1/6) * step_size * (k1xdot + 2 * k2xdot + 2 * k3xdot + k4xdot)
 
-    return new_x, new_xdot, tension
+    return new_x, new_xdot, tension, stability_monitor
 
 def xdot_clean(D, D_dirichlet, x_dot, x):
     '''Projects out length changing part of x_dot, to boost numerical stability.
@@ -143,7 +144,9 @@ def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps
             tangent = D @ x
             stability_monitor = np.sum(tangent**2, axis=1) - 1.0
             results.append((step_size * i, x, stability_monitor, tension))
-        x, x_dot, tension = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size, end_mass=end_mass, drag_coef=drag_coef)
+        x, x_dot, tension, stability_monitor = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size, end_mass=end_mass, drag_coef=drag_coef)
+        if np.max(np.abs(stability_monitor - 1.0)) > 10**(-2):
+            break
         #x_dot = xdot_clean(D, D_dirichlet, x_dot, x) - Boosts stability although could mask mistakes
 
     return results, s
