@@ -3,6 +3,10 @@ from numpy.linalg import solve
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import os
+import pickle
+
+CACHE_FOLDER = 'run_cache'
 
 def alt(n):
     alt = [(-1)**i for i in range(n)]
@@ -139,17 +143,19 @@ def evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps
     x_dot = x_dot_initial_fn(s)
     tension = None
 
+    succeeded = True
     for i in tqdm(range(n_steps)):
         if i % checkpoint_freq == 0:
             tangent = D @ x
             stability_monitor = np.sum(tangent**2, axis=1) - 1.0
-            results.append((step_size * i, x, stability_monitor, tension))
+            results.append((step_size * i, x, stability_monitor, tension, x_dot))
         x, x_dot, tension, stability_monitor = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size, end_mass=end_mass, drag_coef=drag_coef)
         if np.max(np.abs(stability_monitor - 1.0)) > 10**(-2):
+            succeeded = False
             break
         #x_dot = xdot_clean(D, D_dirichlet, x_dot, x) - Boosts stability although could mask mistakes
 
-    return results, s
+    return results, s, succeeded
 
 
 def test_evolve():
@@ -240,7 +246,7 @@ def create_boundary_fn(position_fn, dposition_fn, d2position_fn, transition_time
     return boundary_fn
 
 
-def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, end_mass=0.0, drag_coef=0.0, scale=1.0, total_time=10.0, transition_timescale=1.0):
+def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, end_mass=0.0, drag_coef=0.0, scale=1.0, total_time=10.0, transition_timescale=1.0, disk_cache=False):
     '''Solve and save animation for given position of ribbon end, with standard vals for other params.'''
 
     g = np.array([0,-g])
@@ -254,7 +260,10 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
     n_steps = int(total_time / step_size)
     checkpoint_freq = 1000
 
-    results, s = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=end_mass, drag_coef=drag_coef)
+    if disk_cache:
+        results, s, _ = evolve_with_disk_cache(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=end_mass, drag_coef=drag_coef)
+    else:
+        results, s, _ = evolve(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=end_mass, drag_coef=drag_coef)
 
     ani = animate_results(results, scale=scale)
 
@@ -269,7 +278,7 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
     return results, s
 
 
-def snake(a=0.1, freq=12.0, L=4.0, total_time=10.0, end_mass=1.0, drag_coef=0.0):
+def snake(a=0.1, freq=12.0, L=4.0, total_time=10.0, end_mass=1.0, drag_coef=0.0, **kwargs):
     '''Solve and create animation of the 'snake' move, given amplitude and frequency of oscillation, and length of ribbon.'''
 
     a = a * (2 / L)
@@ -281,7 +290,7 @@ def snake(a=0.1, freq=12.0, L=4.0, total_time=10.0, end_mass=1.0, drag_coef=0.0)
     dposition_fn = lambda t: np.array([a * freq * np.cos(freq * t), 0])
     d2position_fn = lambda t: np.array([-1.0 * a * freq**2 * np.sin(freq * t), 0])
 
-    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html', total_time=total_time, g=g, end_mass=end_mass, drag_coef=drag_coef, scale = L / 2)
+    results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'snake.html', total_time=total_time, g=g, end_mass=end_mass, drag_coef=drag_coef, scale = L / 2, **kwargs)
 
     return results, s
 
@@ -299,3 +308,68 @@ def circle(R=2.0, freq=6.0, L=4.0, total_time=10.0, transition_timescale=1.0, dr
     results, s = solve_and_animate(position_fn, dposition_fn, d2position_fn, 'circle.html', total_time=total_time, g=g, scale = L / 2.0, drag_coef=drag_coef, transition_timescale=transition_timescale)
 
     return results, s
+
+
+def hash_run_params(*args, **kwargs):
+
+    kwarg_list = [(k, kwargs[k]) for k in kwargs]
+    kwarg_list.sort(key=lambda x: x[0]) # Sort by key
+    all_params = list(args) + kwarg_list
+    hashable_params = []
+    for p in all_params:
+        if isinstance(p, np.ndarray):
+            hashable_params.append(tuple(p))
+        else:
+            hashable_params.append(p)
+
+    return hash(tuple(hashable_params))
+
+def evolve_with_disk_cache(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, **kwargs):
+
+    run_hash = hash_run_params(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, **kwargs)
+    filename = f"{run_hash}.pkl"
+
+    if not os.path.exists(CACHE_FOLDER):
+        os.makedirs(CACHE_FOLDER)
+
+    if os.path.exists(os.path.join(CACHE_FOLDER, filename)):
+        with open(os.path.join(CACHE_FOLDER, filename), 'rb') as f:
+            last_checkpoint = pickle.load(f)
+        results = last_checkpoint
+    else:
+        results = []
+
+    D, s = diff_matrix(N)
+    D2 = D @ D
+    D_dirichlet = np.copy(D)
+    D_dirichlet[-1,:] = np.zeros(len(D))
+    D_dirichlet[-1,-1] = 1.0
+
+    if len(results) == 0:
+        x = x_initial_fn(s)
+        x_dot = x_dot_initial_fn(s)
+        start_step = 0
+    else:
+        x = results[-1][1]
+        x_dot = results[-1][4]
+        start_step = results[-1][5]
+    
+    tension = None
+
+    succeeded = True
+    for i in tqdm(range(start_step, n_steps)):
+        
+        if i % checkpoint_freq == 0:
+            tangent = D @ x
+            stability_monitor = np.sum(tangent**2, axis=1) - 1.0
+            results.append((step_size * i, x, stability_monitor, tension, x_dot, i))
+            with open(os.path.join(CACHE_FOLDER, filename),'wb') as f:
+                pickle.dump(results, f)
+        
+        x, x_dot, tension, stability_monitor = time_step_jump(D, D2, g, x, x_dot, step_size * i, boundary_fn, step_size, **kwargs)
+        if np.max(np.abs(stability_monitor - 1.0)) > 10**(-2):
+            succeeded = False
+            break
+
+    return results, s, succeeded
+        
