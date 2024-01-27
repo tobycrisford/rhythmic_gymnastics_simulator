@@ -333,14 +333,12 @@ def hash_run_params(*args, **kwargs):
     hashable_params = []
     for p in all_params:
         if callable(p):
-            hashable_params.append(function_contents(p))
-        elif isinstance(p, np.ndarray):
-            hashable_params.append(tuple(p))
+            hashable_params.append(str(function_contents(p)).encode())
         else:
-            hashable_params.append(p)
+            hashable_params.append(pickle.dumps(p))
 
     for p in hashable_params:
-        m.update(str(p).encode())
+        m.update(p)
 
     return m.hexdigest()
 
