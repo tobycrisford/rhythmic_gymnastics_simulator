@@ -258,7 +258,7 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
     boundary_fn = create_boundary_fn(position_fn, dposition_fn, d2position_fn, transition_timescale=transition_timescale)
 
     n_steps = int(total_time / step_size)
-    checkpoint_freq = checkpoint_times / step_size
+    checkpoint_freq = int(checkpoint_times / step_size)
 
     if disk_cache:
         results, s, _ = evolve_with_disk_cache(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=end_mass, drag_coef=drag_coef)
