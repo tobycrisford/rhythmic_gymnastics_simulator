@@ -1,7 +1,7 @@
 import gym_sym
 import numpy as np
 
-def time_step_search(ub=0.05, lb=0.0001):
+def time_step_search(ub=0.05, lb=0.0001, N=100):
 
     a = 0.5
     freq = 1.0
@@ -14,8 +14,6 @@ def time_step_search(ub=0.05, lb=0.0001):
     g = np.array([0,-5.0])
     x_initial_fn = lambda s: np.column_stack((np.zeros(len(s)), -1 * s))
     x_dot_initial_fn = lambda s: np.zeros((len(s),2))
-
-    N = 100
     
     while True:
         step_size = np.sqrt(ub * lb)
