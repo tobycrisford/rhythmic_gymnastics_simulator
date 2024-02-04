@@ -247,7 +247,8 @@ def create_boundary_fn(position_fn, dposition_fn, d2position_fn, transition_time
     return boundary_fn
 
 
-def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, end_mass=0.0, drag_coef=0.0, scale=1.0, total_time=10.0, transition_timescale=1.0, disk_cache=False):
+def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0, end_mass=0.0, drag_coef=0.0, scale=1.0, total_time=10.0, transition_timescale=1.0, disk_cache=False,
+                      N=100, step_size=0.0001, checkpoint_times=0.1):
     '''Solve and save animation for given position of ribbon end, with standard vals for other params.'''
 
     g = np.array([0,-g])
@@ -256,10 +257,8 @@ def solve_and_animate(position_fn, dposition_fn, d2position_fn, filename, g=10.0
 
     boundary_fn = create_boundary_fn(position_fn, dposition_fn, d2position_fn, transition_timescale=transition_timescale)
 
-    N = 100
-    step_size = 0.0001
     n_steps = int(total_time / step_size)
-    checkpoint_freq = 1000
+    checkpoint_freq = checkpoint_times / step_size
 
     if disk_cache:
         results, s, _ = evolve_with_disk_cache(boundary_fn, g, x_initial_fn, x_dot_initial_fn, N, step_size, n_steps, checkpoint_freq, end_mass=end_mass, drag_coef=drag_coef)
